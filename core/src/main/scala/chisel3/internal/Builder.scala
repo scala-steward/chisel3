@@ -865,6 +865,22 @@ private[chisel3] object Builder extends LazyLogging {
 
   def elaborationTrace: ElaborationTrace = dynamicContext.elaborationTrace
 
+  private def validateGroupCases(
+    groupName:     String,
+    expectedCases: Seq[String],
+    actualCases:   Seq[String],
+    context:       String = ""
+  ): Unit = {
+    if (expectedCases != actualCases) {
+      val contextMsg = if (context.nonEmpty) s" ($context)" else ""
+      throw new IllegalArgumentException(
+        s"Group '$groupName' has inconsistent case definitions$contextMsg.\n" +
+          s"  Expected cases: ${expectedCases.mkString(", ")}\n" +
+          s"  Found cases: ${actualCases.mkString(", ")}"
+      )
+    }
+  }
+
   def forcedClock: Clock = currentClock.getOrElse(
     // TODO add implicit clock change to Builder.exception
     throwException("Error: No implicit clock.")
@@ -1110,11 +1126,25 @@ private[chisel3] object Builder extends LazyLogging {
         Layer(l.sourceInfo, l.name, config, children.map(foldLayers).toSeq, l)
       }
 
-      val optionDefs = groupByIntoSeq(options)(opt => opt.group).map { case (optGroup, cases) =>
+      // Group by name to handle multiple Group objects with the same name (e.g., multiple DynamicGroup instances)
+      val optionDefs = groupByIntoSeq(options)(opt => opt.group.name).map { case (groupName, cases) =>
+        val representativeGroup = cases.head.group
+        val allCaseNames = cases.map(_.name).distinct
+
+        // Validate all Group objects with same name have same cases
+        // Catches: static vs DynamicGroup conflicts, or DynamicGroups with same name but different cases
+        val distinctGroups = cases.map(_.group).distinct
+        if (distinctGroups.size > 1) {
+          distinctGroups.tail.foreach { otherGroup =>
+            val otherCases = cases.filter(_.group == otherGroup).map(_.name).distinct
+            validateGroupCases(groupName, allCaseNames, otherCases, "group conflict")
+          }
+        }
+
         DefOption(
-          optGroup.sourceInfo,
-          optGroup.name,
-          cases.map(optCase => DefOptionCase(optCase.sourceInfo, optCase.name))
+          representativeGroup.sourceInfo,
+          groupName,
+          cases.distinctBy(_.name).map(optCase => DefOptionCase(optCase.sourceInfo, optCase.name))
         )
       }
 

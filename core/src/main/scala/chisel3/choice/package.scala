@@ -30,6 +30,60 @@ package object choice {
     final implicit def group: Group = this
   }
 
+  /** Dynamic option group with runtime-customizable name.
+    *
+    * Unlike static [[Group]] objects, DynamicGroup allows the group name to be specified at instantiation time.
+    * This is useful for parameterized designs where the same group structure is reused with different names.
+    *
+    * @param customName The runtime name for this group
+    *
+    * @example
+    * {{{
+    * class Opt(name: String)(implicit sourceInfo: SourceInfo) extends DynamicGroup(name) {
+    *   object Fast extends DynamicCase
+    *   object Slow extends DynamicCase
+    * }
+    *
+    * // Use with ModuleChoice
+    * class MyModule extends Module {
+    *   val opt = new Opt("OptMyModule")
+    *   val impl = ModuleChoice(new DefaultImpl)(
+    *     Seq(
+    *       opt.Fast -> new FastImpl,
+    *       opt.Slow -> new SlowImpl
+    *     )
+    *   )
+    * }
+    * }}}
+    */
+  abstract class DynamicGroup(customName: String)(implicit _sourceInfo: SourceInfo) {
+    private[chisel3] def sourceInfo: SourceInfo = _sourceInfo
+
+    private[chisel3] val groupName: String = customName
+
+    private val _group: Group = {
+      object DynamicGroupSingleton extends Group()(sourceInfo) {
+        override private[chisel3] def name = groupName
+      }
+      DynamicGroupSingleton
+    }
+
+    final def group: Group = _group
+
+    // Provide an implicit DynamicGroup for DynamicCase objects
+    implicit protected def implicitGroup: DynamicGroup = this
+  }
+
+  /** An option case declaration for [[DynamicGroup]].
+    *
+    * DynamicCase objects must be defined inside a DynamicGroup class.
+    * They use implicit parameters to automatically associate with their parent DynamicGroup.
+    */
+  abstract class DynamicCase(implicit val dynamicGroup: DynamicGroup, _sourceInfo: SourceInfo)
+      extends Case()(using dynamicGroup.group, _sourceInfo) {
+    self: Singleton =>
+  }
+
   /** An option case declaration.
     */
   abstract class Case(implicit val group: Group, _sourceInfo: SourceInfo) {
