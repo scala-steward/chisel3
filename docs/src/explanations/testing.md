@@ -99,13 +99,9 @@ These APIs are summarized below:
 
 - `poke` sets a value on a port
 - `peek` reads a value on a port
-- `expect` reads a value on a port and asserts that it is equal another value
+- `expect` reads a value on a port and asserts that it is equal to another value, with optional custom formatting (see the [testing cookbook](../cookbooks/testing#how-do-i-customize-expect-failure-value-formatting))
 - `step` toggles a clock for a number of cycles
 - `stepUntil` toggles a clock until a condition occurs on another port
-
-For more information see the [Chisel API
-documentation](https://www.chisel-lang.org/api) for
-`chisel3.simulator.PeekPokeAPI`.
 
 #### Reusable Stimulus Patterns
 

@@ -59,6 +59,71 @@ This enables Verilator coverage instrumentation and writes `coverage.dat` at
 the end of simulation. You can convert it to LCOV info with `verilator_coverage`
 for downstream reporting tools.
 
+## How do I customize `expect` failure value formatting?
+
+Pass a format directly to `expect`. `Hex` groups pairs of digits by byte, and `Bin` groups bits in fours.
+
+```scala
+import chisel3.simulator.ExpectationValueFormat
+
+simulate(new Foo) { dut =>
+  // Render failures value in hexadecimal
+  dut.io.out.expect(0xfe.U, ExpectationValueFormat.Hex)
+
+  // Render failures value in binary
+  dut.io.out.expect(0xff.U, ExpectationValueFormat.Bin)
+
+  val jumpInst = BigInt("0000006f", 16) // jal x0, 0
+  val retInst = BigInt("00008067", 16) // jalr x0, x1, 0 (ret)
+
+  // A custom formatter can inspect the raw bits through `value.unsignedValue` and
+  // render a domain-specific label without changing the comparison semantics.
+  val custom = ExpectationValueFormat.Custom { value =>
+    val mnemonic = value.unsignedValue match {
+      case `jumpInst` => "jump"
+      case `retInst`  => "ret"
+      case inst       => s"unknown(0x${inst.toString(16)})"
+    }
+    s"riscv($mnemonic)"
+  }
+
+  // This still checks the exact value; only the failure message rendering is customized.
+  dut.io.out.expect(jumpInst.U(32.W), custom)
+}
+```
+
+You can also customize the failure message separately from the rendered values:
+
+```scala
+import chisel3.simulator.ExpectationValueFormat
+
+def bits(value: ExpectationValueFormat.Value): String =
+  value.unsignedValue.toString(2).reverse.padTo(value.bitWidth, '0').reverse.mkString
+
+val bitDiff = ExpectationValueFormat.Custom.message(
+  ExpectationValueFormat.Custom(bits)
+) { (observed, expected) =>
+  val observedBits = bits(observed)
+  val expectedBits = bits(expected)
+  val markers = observedBits.zip(expectedBits).map {
+    case (observedBit, expectedBit) => if (observedBit == expectedBit) ' ' else '^'
+  }.mkString
+  val diffBits = observedBits.zip(expectedBits).zipWithIndex.collect {
+    case ((observedBit, expectedBit), idx) if observedBit != expectedBit =>
+      observedBits.length - 1 - idx
+  }.sorted
+  val indent = " " * "Observed value: '".length
+
+  s"""|$indent$markers
+      |Diff Bit: ${diffBits.mkString(",")}""".stripMargin
+}
+
+simulate(new Foo) { dut =>
+  dut.io.in.poke("b101111".U)
+  dut.io.out.expect("b100101".U, bitDiff)
+}
+```
+
 ## How do I see what options a ChiselSim Scalatest test supports?
 
 Pass `-Dhelp=1` to Scalatest, e.g.:
