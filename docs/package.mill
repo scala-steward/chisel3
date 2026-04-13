@@ -110,7 +110,9 @@ object `package` extends HasScalaPlugin with HasCommonOptions {
         mdocSources().flatMap(inDir => Seq[String]("--in", inDir.path.toString, "--out", outDir.toString))
       val mdocArgs =
         Seq("--classpath", classpath.mkString(":")) ++
-          Seq("--scalac-options", scalacOptions().map("\"" + _ + "\"").mkString(" ")) ++
+          // mdoc preferentially uses '\n' as separator, whitespace as fallback,
+          // because some -Wconf options have spaces, we want to use '\n'.
+          Seq("--scalac-options", scalacOptions().mkString("\n")) ++
           inOutArgs ++ mdocExtraArguments()
 
       Task.log.debug("Running mdoc with args: " + mdocArgs.mkString(" "))
