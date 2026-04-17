@@ -7,12 +7,14 @@ import chisel3.experimental.SourceInfo
 import scala.collection.mutable
 import scala.util.hashing.MurmurHash3
 
-private[chisel3] trait BitPat$Intf { self: BitPat.type =>
+private[chisel3] trait BitPatObjIntf { self: BitPat.type =>
   implicit class fromUIntToBitPatComparable(x: UInt) {
     def ===(that: BitPat)(using SourceInfo): Bool = that === x
     def =/=(that: BitPat)(using SourceInfo): Bool = that =/= x
   }
 }
+// Polyfill for a Scala 2 binary compatibility workaround
+private[chisel3] trait BitPat$Intf
 
 private[chisel3] trait BitPatIntf extends SourceInfoDoc { self: BitPat =>
   import chisel3.util.experimental.BitSet
