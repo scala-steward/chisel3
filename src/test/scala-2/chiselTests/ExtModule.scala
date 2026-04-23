@@ -342,6 +342,23 @@ class ExtModuleSpec extends AnyFlatSpec with Matchers with ChiselSim with FileCh
       )
   }
 
+  it should "use defName for the FIRRTL defname field" in {
+    class MyExtMod extends ExtModule {
+      override def desiredName = "prefixed_MyExtMod"
+      override def defName = "MyExtMod"
+    }
+    class Top extends Module {
+      val m = Module(new MyExtMod)
+    }
+    ChiselStage
+      .emitCHIRRTL(new Top)
+      .fileCheck()(
+        """|CHECK: extmodule prefixed_MyExtMod :
+           |CHECK: defname = MyExtMod
+           |""".stripMargin
+      )
+  }
+
   it should "escape special characters in requirements" in {
     class Bar extends ExtModule(requirements = Seq("\"quoted\"", "back\\slash"))
 
